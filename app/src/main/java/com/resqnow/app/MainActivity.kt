@@ -57,6 +57,10 @@ fun MainScreen() {
         mutableStateOf(sharedPrefs.getString("end_time", "20:00") ?: "20:00") 
     }
 
+    var isTestMode by remember { 
+        mutableStateOf(sharedPrefs.getBoolean("test_mode", false))
+    }
+
     var isServiceRunning by remember { 
         mutableStateOf(isServiceRunning(context, EmergencyDetectionService::class.java)) 
     }
@@ -128,6 +132,27 @@ fun MainScreen() {
                 }) {
                     Text("End: $endTime")
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Test Mode Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Test Mode", style = MaterialTheme.typography.titleMedium)
+                    Text("Simulate SOS without sending SMS", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(
+                    checked = isTestMode,
+                    onCheckedChange = { 
+                        isTestMode = it
+                        sharedPrefs.edit().putBoolean("test_mode", it).apply()
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

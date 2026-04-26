@@ -2,8 +2,10 @@ package com.resqnow.app
 
 import android.annotation.SuppressLint
 import android.app.*
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -14,6 +16,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.telephony.SmsManager
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -34,12 +37,24 @@ class EmergencyDetectionService : Service() {
         }
     }
 
+    private val shutdownReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SHUTDOWN) {
+                Log.d("ResQNow", "Device shutting down - triggering last location alert")
+                triggerEmergencyResponse(isShutdown = true)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Service started"))
         initializeSpeechRecognizer()
         handler.post(checkTimeRunnable)
+        
+        val filter = IntentFilter(Intent.ACTION_SHUTDOWN)
+        registerReceiver(shutdownReceiver, filter)
     }
 
     private fun createNotificationChannel() {
@@ -125,8 +140,10 @@ class EmergencyDetectionService : Service() {
                 override fun onError(error: Int) {
                     Log.e("ResQNow", "Speech recognition error: $error")
                     if (isListening) {
-                        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
-                            speechRecognizer?.cancel()
+                        when (error) {
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> speechRecognizer?.cancel()
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> Log.d("ResQNow", "Timeout, restarting...")
+                            SpeechRecognizer.ERROR_NO_MATCH -> Log.d("ResQNow", "No match, restarting...")
                         }
                         // Retry after a short delay to avoid rapid looping
                         handler.postDelayed({ if (isListening) startListening() }, 1000)
@@ -158,6 +175,8 @@ class EmergencyDetectionService : Service() {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            // Some devices need this to keep listening
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
             Log.e("ResQNow", "Error starting listening", e)
@@ -170,8 +189,8 @@ class EmergencyDetectionService : Service() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun triggerEmergencyResponse() {
-        Log.d("ResQNow", "Emergency Keyword Detected!")
+    private fun triggerEmergencyResponse(isShutdown: Boolean = false) {
+        Log.d("ResQNow", "Emergency Response Triggered (Shutdown=$isShutdown)")
         
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
@@ -181,19 +200,30 @@ class EmergencyDetectionService : Service() {
                 } else {
                     "Location not available"
                 }
-                sendEmergencySMS(locationUrl)
+                val prefix = if (isShutdown) "[Shutdown Alert] " else ""
+                sendEmergencySMS(prefix + locationUrl)
             }
             .addOnFailureListener {
-                sendEmergencySMS("Location could not be fetched")
+                val prefix = if (isShutdown) "[Shutdown Alert] " else ""
+                sendEmergencySMS(prefix + "Location could not be fetched")
             }
     }
 
     private fun sendEmergencySMS(locationInfo: String) {
         val sharedPrefs = getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
+        val isTestMode = sharedPrefs.getBoolean("test_mode", false)
         val contacts = sharedPrefs.getStringSet("emergency_contacts", emptySet()) ?: emptySet()
         
         val message = "EMERGENCY! I need help. My current location: $locationInfo"
         
+        if (isTestMode) {
+            Log.d("ResQNow", "[TEST MODE] Would send SMS: $message")
+            handler.post {
+                Toast.makeText(this, "[TEST MODE] SOS Triggered!", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
         val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             getSystemService(SmsManager::class.java)
         } else {
@@ -223,5 +253,10 @@ class EmergencyDetectionService : Service() {
         isListening = false
         handler.removeCallbacks(checkTimeRunnable)
         speechRecognizer?.destroy()
+        try {
+            unregisterReceiver(shutdownReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
     }
 }
