@@ -25,8 +25,8 @@ import java.util.*
 class EmergencyDetectionService : Service() {
 
     private var speechRecognizer: SpeechRecognizer? = null
-    private val CHANNEL_ID = "EmergencyDetectionChannel"
-    private val NOTIFICATION_ID = 1
+    private val channelId = "EmergencyDetectionChannel"
+    private val notificationId = 1
     private val handler = Handler(Looper.getMainLooper())
     private var isListening = false
 
@@ -49,7 +49,7 @@ class EmergencyDetectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification("Service started"))
+        startForeground(notificationId, createNotification("Service started"))
         initializeSpeechRecognizer()
         handler.post(checkTimeRunnable)
         
@@ -60,7 +60,7 @@ class EmergencyDetectionService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
+                channelId,
                 "Emergency Detection Service",
                 NotificationManager.IMPORTANCE_LOW
             )
@@ -70,7 +70,7 @@ class EmergencyDetectionService : Service() {
     }
 
     private fun createNotification(content: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, channelId)
             .setContentTitle("ResQNow Monitoring")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
@@ -81,11 +81,11 @@ class EmergencyDetectionService : Service() {
     private fun updateNotification(content: String) {
         val notification = createNotification(content)
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(NOTIFICATION_ID, notification)
+        manager?.notify(notificationId, notification)
     }
 
     private fun checkTimeAndToggleListening() {
-        val sharedPrefs = getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
+        val sharedPrefs = getSharedPreferences("ResQNowPrefs", MODE_PRIVATE)
         val startTimeStr = sharedPrefs.getString("start_time", "09:00") ?: "09:00"
         val endTimeStr = sharedPrefs.getString("end_time", "20:00") ?: "20:00"
 
@@ -210,7 +210,7 @@ class EmergencyDetectionService : Service() {
     }
 
     private fun sendEmergencySMS(locationInfo: String) {
-        val sharedPrefs = getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
+        val sharedPrefs = getSharedPreferences("ResQNowPrefs", MODE_PRIVATE)
         val isTestMode = sharedPrefs.getBoolean("test_mode", false)
         val contacts = sharedPrefs.getStringSet("emergency_contacts", emptySet()) ?: emptySet()
         
@@ -255,7 +255,7 @@ class EmergencyDetectionService : Service() {
         speechRecognizer?.destroy()
         try {
             unregisterReceiver(shutdownReceiver)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Ignore if not registered
         }
     }
