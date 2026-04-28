@@ -369,25 +369,25 @@ fun LoginScreen(navController: NavController) {
 fun DashboardScreen(navController: NavController) {
     val context = LocalContext.current
     val sharedPrefs = context.getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
-    
-    var contacts by remember { 
-        mutableStateOf(sharedPrefs.getStringSet("emergency_contacts", emptySet())?.toList() ?: emptyList()) 
+
+    var contacts by remember {
+        mutableStateOf(sharedPrefs.getStringSet("emergency_contacts", emptySet())?.toList() ?: emptyList())
     }
     var newContact by remember { mutableStateOf("") }
-    
-    var startTime by remember { 
-        mutableStateOf(sharedPrefs.getString("start_time", "09:00") ?: "09:00") 
+
+    var startTime by remember {
+        mutableStateOf(sharedPrefs.getString("start_time", "09:00") ?: "09:00")
     }
-    var endTime by remember { 
-        mutableStateOf(sharedPrefs.getString("end_time", "20:00") ?: "20:00") 
+    var endTime by remember {
+        mutableStateOf(sharedPrefs.getString("end_time", "20:00") ?: "20:00")
     }
 
-    var isTestMode by remember { 
+    var isTestMode by remember {
         mutableStateOf(sharedPrefs.getBoolean("test_mode", false))
     }
 
-    var isServiceRunning by remember { 
-        mutableStateOf(isServiceRunning(context, EmergencyDetectionService::class.java)) 
+    var isServiceRunning by remember {
+        mutableStateOf(isServiceRunning(context, EmergencyDetectionService::class.java))
     }
 
     val permissionsToRequest = remember {
@@ -474,7 +474,7 @@ fun DashboardScreen(navController: NavController) {
                         }) {
                             Text("Start: $startTime")
                         }
-                        
+
                         TextButton(onClick = {
                             showTimePicker(context, endTime) { newTime ->
                                 endTime = newTime
@@ -501,7 +501,7 @@ fun DashboardScreen(navController: NavController) {
                 }
                 Switch(
                     checked = isTestMode,
-                    onCheckedChange = { 
+                    onCheckedChange = {
                         isTestMode = it
                         sharedPrefs.edit().putBoolean("test_mode", it).apply()
                     }
@@ -518,7 +518,7 @@ fun DashboardScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
             )
-            
+
             Button(
                 onClick = {
                     if (newContact.isNotBlank()) {
