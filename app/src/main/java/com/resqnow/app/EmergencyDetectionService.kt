@@ -212,7 +212,10 @@ class EmergencyDetectionService : Service() {
     private fun sendEmergencySMS(locationInfo: String) {
         val sharedPrefs = getSharedPreferences("ResQNowPrefs", MODE_PRIVATE)
         val isTestMode = sharedPrefs.getBoolean("test_mode", false)
-        val contacts = sharedPrefs.getStringSet("emergency_contacts", emptySet()) ?: emptySet()
+        val savedContacts = sharedPrefs.getStringSet("emergency_contacts", emptySet()) ?: emptySet()
+        val parentNumber = sharedPrefs.getString("parent_number", "") ?: ""
+        
+        val allContacts = if (parentNumber.isNotBlank()) savedContacts + parentNumber else savedContacts
         
         val message = "EMERGENCY! I need help. My current location: $locationInfo"
         
@@ -231,7 +234,7 @@ class EmergencyDetectionService : Service() {
             SmsManager.getDefault()
         }
 
-        for (contact in contacts) {
+        for (contact in allContacts) {
             try {
                 smsManager.sendTextMessage(contact, null, message, null, null)
                 Log.d("ResQNow", "SMS sent to $contact")

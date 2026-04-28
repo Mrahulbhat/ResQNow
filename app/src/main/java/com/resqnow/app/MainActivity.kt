@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,7 +60,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     composable("splash") { ResQNowScreen(navController) }
                     composable("login") { LoginScreen(navController) }
+                    composable("details") { DetailsScreen(navController) }
                     composable("dashboard") { DashboardScreen(navController) }
+                    composable("profile") { ProfileScreen(navController) }
                 }
             }
         }
@@ -263,7 +267,7 @@ fun LoginScreen(navController: NavController) {
             // Login Button
             Button(
                 onClick = {
-                    navController.navigate("dashboard") {
+                    navController.navigate("details") {
                         popUpTo("login") { inclusive = true }
                     }
                 },
@@ -370,8 +374,12 @@ fun DashboardScreen(navController: NavController) {
     val context = LocalContext.current
     val sharedPrefs = context.getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
 
+    val parentNumber = sharedPrefs.getString("parent_number", "") ?: ""
+    
     var contacts by remember {
-        mutableStateOf(sharedPrefs.getStringSet("emergency_contacts", emptySet())?.toList() ?: emptyList())
+        val savedContacts = sharedPrefs.getStringSet("emergency_contacts", emptySet()) ?: emptySet()
+        val allContacts = if (parentNumber.isNotBlank()) savedContacts + parentNumber else savedContacts
+        mutableStateOf(allContacts.toList())
     }
     var newContact by remember { mutableStateOf("") }
 
@@ -425,6 +433,11 @@ fun DashboardScreen(navController: NavController) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("ResQNow Dashboard") },
+                actions = {
+                    IconButton(onClick = { navController.navigate("profile") }) {
+                        Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF0F172A),
                     titleContentColor = Color.White
@@ -510,40 +523,45 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Emergency Contacts
-            OutlinedTextField(
-                value = newContact,
-                onValueChange = { newContact = it },
-                label = { Text("Emergency Contact Number") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-            )
-
-            Button(
-                onClick = {
-                    if (newContact.isNotBlank()) {
-                        contacts = contacts + newContact
-                        sharedPrefs.edit().putStringSet("emergency_contacts", contacts.toSet()).apply()
-                        newContact = ""
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) {
-                Text("Add Contact")
-            }
-
+            // Emergency Contacts - Removed manual entry as per user request
             Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Monitoring Contacts",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
 
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(contacts) { contact ->
+                    val isParent = contact == parentNumber
                     ListItem(
-                        headlineContent = { Text(contact) },
+                        headlineContent = { 
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(contact)
+                                if (isParent) {
+                                    Badge(
+                                        containerColor = Color(0xFF10B981),
+                                        contentColor = Color.White,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    ) {
+                                        Text("Primary", modifier = Modifier.padding(2.dp))
+                                    }
+                                }
+                            }
+                        },
                         trailingContent = {
-                            IconButton(onClick = {
-                                contacts = contacts - contact
-                                sharedPrefs.edit().putStringSet("emergency_contacts", contacts.toSet()).apply()
-                            }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            if (!isParent) {
+                                IconButton(onClick = {
+                                    contacts = contacts - contact
+                                    sharedPrefs.edit().putStringSet("emergency_contacts", contacts.toSet()).apply()
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                }
+                            } else {
+                                IconButton(onClick = { navController.navigate("profile") }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit in Profile")
+                                }
                             }
                         }
                     )
@@ -581,6 +599,186 @@ fun DashboardScreen(navController: NavController) {
                 Text(if (isServiceRunning) "STOP MONITORING" else "START MONITORING")
             }
         }
+    }
+}
+
+@Composable
+fun DetailsScreen(navController: NavController) {
+    val context = LocalContext.current
+    val sharedPrefs = context.getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
+
+    var name by remember { mutableStateOf(sharedPrefs.getString("user_name", "") ?: "") }
+    var emergencyNumber by remember { mutableStateOf(sharedPrefs.getString("parent_number", "") ?: "") }
+    var policeStation by remember { mutableStateOf(sharedPrefs.getString("police_station", "") ?: "") }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(24.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+            Text(
+                text = "Setup Profile",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "Add your details for emergency response",
+                fontSize = 14.sp,
+                color = Color(0xFF64748B)
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Full Name") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color(0xFF0F172A),
+                    unfocusedTextColor = Color(0xFF0F172A),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC)
+                )
+            )
+
+            OutlinedTextField(
+                value = emergencyNumber,
+                onValueChange = { emergencyNumber = it },
+                label = { Text("Emergency / Parent Number") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color(0xFF0F172A),
+                    unfocusedTextColor = Color(0xFF0F172A),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC)
+                )
+            )
+
+            OutlinedTextField(
+                value = policeStation,
+                onValueChange = { policeStation = it },
+                label = { Text("Nearby Police Station") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color(0xFF0F172A),
+                    unfocusedTextColor = Color(0xFF0F172A),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = {
+                    if (name.isBlank() || emergencyNumber.isBlank()) {
+                        Toast.makeText(context, "Please fill Name and Emergency Number", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    sharedPrefs.edit()
+                        .putString("user_name", name)
+                        .putString("parent_number", emergencyNumber)
+                        .putString("police_station", policeStation)
+                        .apply()
+                    
+                    navController.navigate("dashboard") {
+                        popUpTo("details") { inclusive = true }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48))
+            ) {
+                Text("Save and Continue", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileScreen(navController: NavController) {
+    val context = LocalContext.current
+    val sharedPrefs = context.getSharedPreferences("ResQNowPrefs", Context.MODE_PRIVATE)
+
+    val name = sharedPrefs.getString("user_name", "Not Set") ?: "Not Set"
+    val parentNumber = sharedPrefs.getString("parent_number", "Not Set") ?: "Not Set"
+    val policeStation = sharedPrefs.getString("police_station", "Not Set") ?: "Not Set"
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Profile") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF0F172A),
+                    titleContentColor = Color.White
+                )
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(24.dp)
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    ProfileItem(label = "Name", value = name)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFE2E8F0))
+                    ProfileItem(label = "Emergency Number", value = parentNumber)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFE2E8F0))
+                    ProfileItem(label = "Nearby Police Station", value = policeStation)
+                }
+            }
+
+            Button(
+                onClick = { navController.navigate("details") },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE11D48))
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Edit Profile", fontWeight = FontWeight.Bold)
+            }
+
+            OutlinedButton(
+                onClick = { navController.popBackStack() },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Back to Dashboard")
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileItem(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(text = label, fontSize = 12.sp, color = Color(0xFF64748B))
+        Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
     }
 }
 
